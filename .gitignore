@@ -1,0 +1,12 @@
+
+# Ignore Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Ignore Dataset directories
+dementia_mild/
+dementia_moderate/
+dementia_very_mild/
+non-demented/
+
+# Ignore system files
+.DS_Store
