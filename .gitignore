@@ -3,10 +3,18 @@
 .ipynb_checkpoints/
 
 # Ignore Dataset directories
+oasis_data/
 dementia_mild/
 dementia_moderate/
 dementia_very_mild/
 non-demented/
 
+# Ignore csv files
+test_clean.csv
+train_clean.csv
+
 # Ignore system files
 .DS_Store
+
+# Ignore Keras Models
+models/
