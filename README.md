@@ -16,6 +16,74 @@ The author gratefully acknowledges the following resources:
 
 -   The dataset used in this study is provided by the OASIS dataset from [OASIS Alzheimer's Detection](https://www.kaggle.com/datasets/ninadaithal/imagesoasis/code) on Kaggle.
 
+### Operating System
+
+-   **OS**: Red Hat Enterprise Linux 10
+-   **GPU**: NVIDIA GeForce RTX 4070 Laptop GPU (8GB GDDR6 VRAM)
+-   **RAM**: 64GB DDR5-5600
+-   **Environment**: VSCode with Jupyter Notebook support in Miniconda.(Or if you prefer `vim` btw.)
+
+## Set up
+
+### Environment for Linux
+
+1. If you use Pyenv (via pip):
+
+    1. Install Python and create virtualenv
+
+        ```bash
+        pyenv install 3.12.12
+        pyenv virtualenv 3.12.12 ml-for-biomedicine
+        pyenv activate ml-for-biomedicine
+        ```
+
+    2. Install dependencies (Essential Step)
+
+        > Note: Use quotes for 'tensorflow[and-cuda]' to avoid shell errors in zsh.
+
+        ```bash
+        pip install numpy pandas opencv-python "tensorflow[and-cuda]" matplotlib seaborn scikit-learn ipykernel
+        ```
+
+2. If you use Conda:
+
+    ```bash
+    conda env create -f environment-20251208.yaml
+    conda activate ml-for-biomedicine
+    ```
+
+3. Evaluate if Tensorflow can use GPU
+
+    ```bash
+    python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
+    ```
+
+    If it returns an empty list, it's necessary to resolve the dependency issues of CUDA and cuDNN version corresponding to your NVIDIA GPU.
+
+### Data
+
+1. Download the dataset from [OASIS Alzheimer's Detection](https://www.kaggle.com/datasets/ninadaithal/imagesoasis/data) on Kaggle. If using the Kaggle CLI, run the following command:
+
+    ```bash
+    kaggle datasets download ninadaithal/imagesoasis
+    ```
+
+2. Unzip the dataset and place it in the `Data` directory.
+
+    ```bash
+    unzip archive.zip
+    ```
+
+3. Establish the root directory of the dataset.
+
+    ```bash
+    mv Data oasis_data
+    mv oasis_data/"Mild Dementia" oasis_data/dementia_mild
+    mv oasis_data/"Moderate Dementia" oasis_data/dementia_moderate
+    mv oasis_data/"Very mild Dementia" oasis_data/dementia_very_mild
+    mv oasis_data/"Non Demented" oasis_data/non-demented
+    ```
+
 ## Methodology
 
 ### Background
@@ -45,7 +113,3 @@ To ensure academic rigor, the sources cited in this study followed by the priori
 -   Credible academic monographs or textbooks.
 -   Reports and technical articles published by authoritative institutions or academic conferences.
 -   Relevant online articles in the field.
-
-### Note
-
-The setup process is seen as fundamental skill for machine learning engineers, and it is beyond the scope of this `README.md`.

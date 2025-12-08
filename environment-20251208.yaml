@@ -1,0 +1,15 @@
+name: ml-for-biomedicine
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.12
+  - pip
+  - numpy
+  - pandas
+  - opencv
+  - tensorflow
+  - matplotlib
+  - seaborn
+  - scikit-learn
+  - ipykernel

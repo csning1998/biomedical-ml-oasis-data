@@ -18,3 +18,8 @@ train_clean.csv
 
 # Ignore Keras Models
 models/
+
+# Ignore IDE files
+.vscode/
+.idea/
+.vs
