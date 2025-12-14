@@ -7,6 +7,7 @@ import tensorflow as tf
 import numpy as np
 import cv2
 import functools
+from sklearn.utils import class_weight
 from tensorflow.keras.applications.resnet import preprocess_input
 
 # Define the CLASS_MAP at the module level, which is used to map the class name to the label.
@@ -17,39 +18,93 @@ CLASS_MAP = {
     "dementia_moderate": 3
 }
 
+def get_class_weights(df):
+    """
+    Computes class weights for imbalanced datasets based on the input DataFrame.
+    
+    Args:
+        df (pd.DataFrame): DataFrame containing a 'class_name' column.
+        
+    Returns:
+        dict: A dictionary mapping class indices (int) to weights (float),
+                ready to be passed to model.fit(class_weight=...).
+    """
+    # 1. Get class indices
+    y_train_indices = [CLASS_MAP[c] for c in df['class_name'].values]
+    
+    # 2. Compute class weights
+    class_weights_values = class_weight.compute_class_weight(
+        class_weight='balanced',
+        classes=np.unique(y_train_indices),
+        y=y_train_indices
+    )
+    
+    # 3. Convert to Keras dictionary format {0: w0, 1: w1, ...}
+    class_weights_dict = dict(enumerate(class_weights_values))
+    
+    return class_weights_dict
+
+def _apply_enhancement(img_gray, method_str):
+    """
+    Internal helper: Applies pixel-level enhancement before colormapping.
+    Handles 'clahe' and 'he' (Histogram Equalization).
+    """
+    if 'clahe' in method_str: # CLAHE: Contrast Limited Adaptive Histogram Equalization
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        img_gray = clahe.apply(img_gray)
+    elif 'he' in method_str: # HE: Global Histogram Equalization
+        img_gray = cv2.equalizeHist(img_gray)
+    return img_gray
+
+
 def apply_pseudo_rgb(image_path, method='duplicate'):
     """
-    Reads a grayscale image and applies Pseudo-RGB transformation.
+    Reads a grayscale image and applies Enhancement + Pseudo-RGB transformation.
     
     Args:
         image_path (str): Path to the image file.
-        method (str): 
-            - 'duplicate': Repeats the grayscale channel 3 times (R=G=B).
-            - 'jet': Applies JET colormap to map intensity to color.
-        
+        method (str): A composite string indicating the pipeline.
+                    Format: "[enhancement_][colormap]"
+                    Examples: 
+                        - 'duplicate' (Baseline)
+                        - 'jet', 'viridis' (Standard)
+                        - 'clahe_duplicate', 'he_jet' (Enhanced)
+                        - 'sobel' (Edge Detection)
     Returns:
-        np.array: A 3-channel RGB image with shape (224, 224, 3).
+        np.array: A 3-channel RGB image with shape (224, 224, 3), range [0, 255].
     """
-    # Read as grayscale to ensure 1 channel input
+    # 1. Read as grayscale
+    if isinstance(image_path, bytes):
+        image_path = image_path.decode('utf-8')
+
     img_gray = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    
+
     if img_gray is None:
         raise ValueError(f"Image not found: {image_path}")
 
-    # Resize to 224x224 for Standard Input for ResNet-101
+    # 2. Resize to 224x224 for Standard Input for ResNet-101
     img_resized = cv2.resize(img_gray, (224, 224))
 
-    if method == 'duplicate':
+    # 3. Enhancement Phase (Pre-processing)
+    image_enhanced = _apply_enhancement(img_resized, method)
+
+    # 4. Transformation Phase (Grayscale -> RGB)
+    base_method = method
+    for prefix in ['clahe_', 'he_']:
+        if prefix in method:
+            base_method = method.replace(prefix, '')
+
+    if base_method == 'duplicate':
         # Stack the grayscale image 3 times: (224, 224) -> (224, 224, 3)
         img_rgb = np.stack([img_resized] * 3, axis=-1)
         
-    elif method == 'jet':
+    elif base_method == 'jet':
         # Apply JET colormap: Maps low intensity to Blue, high to Red
         # applyColorMap returns BGR, thus convert to RGB
         img_color = cv2.applyColorMap(img_resized, cv2.COLORMAP_JET)
         img_rgb = cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB)
         
-    elif method == 'viridis':
+    elif base_method == 'viridis':
         # Apply VIRIDIS colormap: Maps low intensity to Blue, high to Red
         try:
             img_color = cv2.applyColorMap(img_resized, cv2.COLORMAP_VIRIDIS)
@@ -57,6 +112,16 @@ def apply_pseudo_rgb(image_path, method='duplicate'):
             # Fallback if specific version misses VIRIDIS
             img_color = cv2.applyColorMap(img_resized, cv2.COLORMAP_JET)
         img_rgb = cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB)
+    elif base_method == 'sobel':
+        # Ablation Study: Sobel vs Texture
+        sobelx = cv2.Sobel(img_resized, cv2.CV_64F, 1, 0, ksize=3)
+        sobely = cv2.Sobel(img_resized, cv2.CV_64F, 0, 1, ksize=3)
+
+        # Compute magnitude and Normalize to 0-255
+        magnitude = cv2.magnitude(grad_x, grad_y)
+        magnitude = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+        
+        img_rgb = np.stack([magnitude]*3, axis=-1)
 
     else:
         raise ValueError(f"Unknown method: {method}")
@@ -66,31 +131,20 @@ def apply_pseudo_rgb(image_path, method='duplicate'):
 
 def image_processor(file_path_tensor, label_tensor, method):
     """
-    Pure Python function to be wrapped by tf.py_function.
-    Performs I/O and Pseudo-RGB transformation.
-    
-    Args:
-        file_path_tensor (EagerTensor): Byte string tensor of file path.
-        label_tensor (EagerTensor): Integer tensor of label.
-        method (str): Transformation method ('duplicate' or 'jet').
-        
-    Returns:
-        (np.array, int): Processed image and label.
+    Wrapper for tf.py_function. The Model Factory must now handle 'preprocess_input' via a Lambda layer.
+    Returns raw RGB values [0, 255] in float32.
     """
-    # 1. Decode the byte tensor into the string format of the file path, and extract the label value.
-    file_path = file_path_tensor.numpy().decode('utf-8')
+    
+    # 1. Convert tensors to numpy arrays
+    file_path = file_path_tensor.numpy()
     label = label_tensor.numpy()
     
-    # 2. Call the `apply_pseudo_rgb` function to perform the Pseudo-RGB conversion, resulting in an output shape of (224, 224, 3).
+    # 2. Get [0, 255] RGB image
     img = apply_pseudo_rgb(file_path, method=method)
     
-    # 3. Convert the format to Float32.
+    # 3. Cast to float32 for Tensor compatibility
     img = img.astype(np.float32)
     
-    # 4. Use the preprocessing function from ResNet to automatically perform BGR transform and Mean Subtraction
-    img = preprocess_input(img)
-    
-    # 5. Return the processed image array and the label as the output.
     return img, label
 
 
