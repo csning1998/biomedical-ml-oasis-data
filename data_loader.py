@@ -144,6 +144,9 @@ def image_processor(file_path_tensor, label_tensor, method):
     
     # 3. Cast to float32 for Tensor compatibility
     img = img.astype(np.float32)
+
+    # 4. Caffe Style Preprocessing
+    img = preprocess_input(img)
     
     return img, label
 
