@@ -8,13 +8,17 @@ dementia_mild/
 dementia_moderate/
 dementia_very_mild/
 non-demented/
+dataset/
 
-# Ignore csv files
-test_clean.csv
-train_clean.csv
+# Ignore csv files (insurance)
+**/*.csv
 
 # Ignore system files
 .DS_Store
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
 
 # Ignore Keras Models
 models/
