@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-def build_model(input_shape=(224, 224, 3), num_classes=4, weights='imagenet'):
+def build_baseline_model(input_shape=(224, 224, 3), num_classes=4, weights='imagenet'):
     """
     Constructs the ResNet-101 model for AD classification.
     
