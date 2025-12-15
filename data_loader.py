@@ -59,70 +59,36 @@ def _apply_enhancement(img_gray, method_str):
 
 def apply_pseudo_rgb(image_path, method='duplicate'):
     """
-    Reads a grayscale image and applies Enhancement + Pseudo-RGB transformation.
+    Reads a grayscale image and applies Pseudo-RGB transformation.
     
     Args:
         image_path (str): Path to the image file.
-        method (str): A composite string indicating the pipeline.
-                    Format: "[enhancement_][colormap]"
-                    Examples: 
-                        - 'duplicate' (Baseline)
-                        - 'jet', 'viridis' (Standard)
-                        - 'clahe_duplicate', 'he_jet' (Enhanced)
-                        - 'sobel' (Edge Detection)
+        method (str): 
+            - 'duplicate': Repeats the grayscale channel 3 times (R=G=B).
+            - 'jet': Applies JET colormap to map intensity to color.
+        
     Returns:
-        np.array: A 3-channel RGB image with shape (224, 224, 3), range [0, 255].
+        np.array: A 3-channel RGB image with shape (224, 224, 3).
     """
-    # 1. Read as grayscale
-    if isinstance(image_path, bytes):
-        image_path = image_path.decode('utf-8')
-
+    # Read as grayscale to ensure 1 channel input
     img_gray = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-
+    
     if img_gray is None:
         raise ValueError(f"Image not found: {image_path}")
 
-    # 2. Resize to 224x224 for Standard Input for ResNet-101
+    # Resize to 224x224 for Standard Input for ResNet-101
     img_resized = cv2.resize(img_gray, (224, 224))
 
-    # 3. Enhancement Phase (Pre-processing)
-    image_enhanced = _apply_enhancement(img_resized, method)
-
-    # 4. Transformation Phase (Grayscale -> RGB)
-    base_method = method
-    for prefix in ['clahe_', 'he_']:
-        if prefix in method:
-            base_method = method.replace(prefix, '')
-
-    if base_method == 'duplicate':
+    if method == 'duplicate':
         # Stack the grayscale image 3 times: (224, 224) -> (224, 224, 3)
         img_rgb = np.stack([img_resized] * 3, axis=-1)
         
-    elif base_method == 'jet':
+    elif method == 'jet':
         # Apply JET colormap: Maps low intensity to Blue, high to Red
         # applyColorMap returns BGR, thus convert to RGB
         img_color = cv2.applyColorMap(img_resized, cv2.COLORMAP_JET)
         img_rgb = cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB)
         
-    elif base_method == 'viridis':
-        # Apply VIRIDIS colormap: Maps low intensity to Blue, high to Red
-        try:
-            img_color = cv2.applyColorMap(img_resized, cv2.COLORMAP_VIRIDIS)
-        except AttributeError:
-            # Fallback if specific version misses VIRIDIS
-            img_color = cv2.applyColorMap(img_resized, cv2.COLORMAP_JET)
-        img_rgb = cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB)
-    elif base_method == 'sobel':
-        # Ablation Study: Sobel vs Texture
-        sobelx = cv2.Sobel(img_resized, cv2.CV_64F, 1, 0, ksize=3)
-        sobely = cv2.Sobel(img_resized, cv2.CV_64F, 0, 1, ksize=3)
-
-        # Compute magnitude and Normalize to 0-255
-        magnitude = cv2.magnitude(grad_x, grad_y)
-        magnitude = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-        
-        img_rgb = np.stack([magnitude]*3, axis=-1)
-
     else:
         raise ValueError(f"Unknown method: {method}")
         
@@ -131,25 +97,32 @@ def apply_pseudo_rgb(image_path, method='duplicate'):
 
 def image_processor(file_path_tensor, label_tensor, method):
     """
-    Wrapper for tf.py_function. The Model Factory must now handle 'preprocess_input' via a Lambda layer.
-    Returns raw RGB values [0, 255] in float32.
-    """
+    Pure Python function to be wrapped by tf.py_function.
+    Performs I/O and Pseudo-RGB transformation.
     
-    # 1. Convert tensors to numpy arrays
-    file_path = file_path_tensor.numpy()
+    Args:
+        file_path_tensor (EagerTensor): Byte string tensor of file path.
+        label_tensor (EagerTensor): Integer tensor of label.
+        method (str): Transformation method ('duplicate' or 'jet').
+        
+    Returns:
+        (np.array, int): Processed image and label.
+    """
+    # 1.
+    file_path = file_path_tensor.numpy().decode('utf-8')
     label = label_tensor.numpy()
     
-    # 2. Get [0, 255] RGB image
+    # 2. 
     img = apply_pseudo_rgb(file_path, method=method)
     
-    # 3. Cast to float32 for Tensor compatibility
+    # 3.
     img = img.astype(np.float32)
-
-    # 4. Caffe Style Preprocessing
+    
+    # 4.
     img = preprocess_input(img)
     
+    # 5.
     return img, label
-
 
 def set_tensor_shapes(img, label):
     """
@@ -213,4 +186,3 @@ def create_dataset(df, method='duplicate', batch_size=32, shuffle=False):
     ds = ds.prefetch(buffer_size=tf.data.AUTOTUNE)
     
     return ds
-
