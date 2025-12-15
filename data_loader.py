@@ -126,7 +126,7 @@ def set_tensor_shapes(img, label):
     
     return img, label
 
-def create_dataset(df, method='duplicate', batch_size=32, shuffle=False):
+def create_dataset(df, method='duplicate', batch_size=32, shuffle=False, preprocess_fn=None):
     """
     Factory function to build the tf.data pipeline.
     
@@ -135,6 +135,9 @@ def create_dataset(df, method='duplicate', batch_size=32, shuffle=False):
         method (str): 'duplicate' or 'jet'.
         batch_size (int): Batch size.
         shuffle (bool): Whether to shuffle data.
+        preprocess_fn (callable): 
+            if None (RQ1), use default preprocessing function.
+            else (RQ2), use the provided preprocessing function and ignore the method argument.
         
     Returns:
         tf.data.Dataset: Configured dataset pipeline.
@@ -151,7 +154,10 @@ def create_dataset(df, method='duplicate', batch_size=32, shuffle=False):
         ds = ds.shuffle(buffer_size=2000, seed=42)
     
     # 4. Partial binding of the method argument
-    loader_func = functools.partial(image_processor, method=method)
+    if preprocess_fn is None:
+        loader_func = functools.partial(image_processor, method=method)
+    else:
+        loader_func = preprocess_fn
     
     # 5. Map: Connect Python logic to TF Graph
     ds = ds.map(
