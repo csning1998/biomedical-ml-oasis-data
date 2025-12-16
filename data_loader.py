@@ -18,7 +18,7 @@ CLASS_MAP = {
     "dementia_moderate": 3
 }
 
-def get_class_weights(df):
+def get_class_weights(df): # RQ1
     """
     Computes class weights for imbalanced datasets based on the input DataFrame.
     
@@ -126,7 +126,7 @@ def set_tensor_shapes(img, label):
     
     return img, label
 
-def create_dataset(df, method='duplicate', batch_size=32, shuffle=False, preprocess_fn=None):
+def create_dataset(df, method='duplicate', batch_size=32, shuffle=False, preprocess_fn=None): # RQ1
     """
     Factory function to build the tf.data pipeline.
     
