@@ -15,16 +15,17 @@ def build_resnet101(input_shape=(224, 224, 3), num_classes=4, freeze_bn=True, we
         weights (str): The weights to use for the model.
         freeze_bn (bool): Whether to freeze the batch normalization layers.
             This parameter determines how the model handles the standardization statistics of features during fine-tuning.
-            If True, locks the BN layers' gamma (Scale) and beta (Shift) params, 
-                and force using ImageNet pre-trained population statistics mu_{pop} and sigma^2_{pop}.
-                This may cause Noisy Gradients on the direction of gradient descent.
-            If False, allows BN layers to update gamma and beta via backpropagation, 
-                and use the current batch statistics bar{x}_{batch} and s^2_{batch} for standardization, 
-                while updating running statistics with momentum.
+            
+            * If True (Recommended for Small Batch Size): 
+                Locks the BN layers' gamma (Scale) and beta (Shift) params, and forces the use of ImageNet pre-trained population statistics (mu_{pop}, sigma^2_{pop}).
+                **Benefit**: Prevents "Noisy Gradients" caused by unstable batch statistics when batch size is small (e.g., 16), ensuring training stability.
+            
+            * If False (Default in pure Keras): 
+                Allows BN layers to update gamma and beta via backpropagation, and uses the current batch statistics (bar{x}_{batch}, s^2_{batch}) for standardization.
+                **Risk**: With small batches, sample statistics are poor estimators of population statistics, leading to biased gradients and potential model divergence.
 
     Returns:
         tf.keras.Model: The built model.
-
     """
     inputs = tf.keras.Input(shape=input_shape)
     
@@ -34,7 +35,10 @@ def build_resnet101(input_shape=(224, 224, 3), num_classes=4, freeze_bn=True, we
         input_tensor=inputs
     )
     
-    # Implement RQ1 validated BN Freezing strategy
+    # Ensure Backbone is tranable for fine-tuning
+    base_model.trainable = True
+
+    # Implement RQ1 validated BN Freezing strategy (to avoid Noisy Gradients, aka biased estimation of gradient.)
     if freeze_bn:
         for layer in base_model.layers:
             if isinstance(layer, tf.keras.layers.BatchNormalization):
