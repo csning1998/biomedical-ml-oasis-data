@@ -6,6 +6,7 @@ Refactored to support 'Restart Kernel' workflow by removing global variable depe
 
 import os
 import tensorflow as tf
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -174,14 +175,13 @@ def plot_history(history, experiment_name):
     plt.tight_layout()
     plt.show()
 
-def evaluate_and_plot_cm(model, val_ds, class_names, title_prefix="Model"):
+def evaluate_and_plot_cm(model, val_ds, title_prefix="Model"):
     """
     Unified evaluation function: generate predictions, plot confusion matrix, and print classification report.
     
     Args:
         model: Trained Keras model
         val_ds: Validation or test dataset (tf.data.Dataset), suggested batch_size <= 16 to avoid OOM
-        class_names: List of class names, order must correspond to label index
         title_prefix: Prefix for the plot title (e.g., 'RQ1 Baseline', 'RQ2 Jet')
     """
 
