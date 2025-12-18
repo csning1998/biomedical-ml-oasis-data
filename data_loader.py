@@ -11,6 +11,7 @@ import os
 import random
 from sklearn.utils import class_weight
 from tensorflow.keras.applications.resnet import preprocess_input
+import matplotlib.pyplot as plt
 
 # Define the CLASS_MAP at the module level, which is used to map the class name to the label.
 CLASS_MAP = {
@@ -83,23 +84,41 @@ def apply_pseudo_rgb(image_path, method='duplicate'):
     Returns:
         np.array: A 3-channel RGB image with shape (224, 224, 3).
     """
-    # Read as grayscale to ensure 1 channel input
+
+    # Read as grayscale
     img_gray = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     
     if img_gray is None:
         raise ValueError(f"Image not found: {image_path}")
 
-    # Resize to 224x224 for Standard Input for ResNet-101
+    # Resize to 224x224
     img_resized = cv2.resize(img_gray, (224, 224))
 
     if method == 'duplicate':
-        # Stack the grayscale image 3 times: (224, 224) -> (224, 224, 3)
+        # Baseline: Duplicate channels
         img_rgb = np.stack([img_resized] * 3, axis=-1)
         
     elif method == 'jet':
-        # Apply JET colormap: Maps low intensity to Blue, high to Red
-        # applyColorMap returns BGR, thus convert to RGB
+        # RQ2 Exp A: JET Colormap
         img_color = cv2.applyColorMap(img_resized, cv2.COLORMAP_JET)
+        img_rgb = cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB)
+        
+    elif method == 'viridis':
+        # RQ2 Exp B: Viridis (Perceptually Uniform)
+        # Matplotlib's colormap works on normalized 0-1 data
+        img_norm = img_resized / 255.0
+        colormap = plt.get_cmap('viridis')
+        img_rgba = colormap(img_norm) # Returns (224, 224, 4) float
+        img_rgb = (img_rgba[:, :, :3] * 255).astype(np.uint8) # Drop Alpha, convert back to uint8
+        
+    elif method == 'clahe_jet':
+        # RQ2 Exp C: CLAHE + JET
+        # 1. Apply CLAHE (Contrast Limited Adaptive Histogram Equalization)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        img_clahe = clahe.apply(img_resized)
+        
+        # 2. Apply JET to the contrast-enhanced image
+        img_color = cv2.applyColorMap(img_clahe, cv2.COLORMAP_JET)
         img_rgb = cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB)
         
     else:
