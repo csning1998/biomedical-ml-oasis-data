@@ -7,6 +7,8 @@ import tensorflow as tf
 import numpy as np
 import cv2
 import functools
+import os
+import random
 from sklearn.utils import class_weight
 from tensorflow.keras.applications.resnet import preprocess_input
 
@@ -18,7 +20,31 @@ CLASS_MAP = {
     "dementia_moderate": 3
 }
 
-def get_class_weights(df):
+TRAINING_SEED = 439 # According to 01_Data_Preparation.ipynb
+
+def set_global_seed(seed=TRAINING_SEED):
+    """
+    Set the global random seed according to 01_Data_Preparation.ipynb for reproducibility.
+    
+    Args:
+        seed (int): The seed value to set. Defaults to TRAINING_SEED.
+    """
+    # 1. Python core
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    random.seed(seed)
+    
+    # 2. Numpy
+    np.random.seed(seed)
+    
+    # 3. TensorFlow
+    tf.random.set_seed(seed)
+    
+    # 4. Keras (Newer versions utility)
+    tf.keras.utils.set_random_seed(seed)
+    
+    print(f"Global Random Seed set to: {seed}")
+
+def get_class_weights(df): # RQ1
     """
     Computes class weights for imbalanced datasets based on the input DataFrame.
     
@@ -126,7 +152,7 @@ def set_tensor_shapes(img, label):
     
     return img, label
 
-def create_dataset(df, method='duplicate', batch_size=32, shuffle=False):
+def create_dataset(df, method='duplicate', batch_size=32, shuffle=False, preprocess_fn=None): # RQ1
     """
     Factory function to build the tf.data pipeline.
     
@@ -135,6 +161,9 @@ def create_dataset(df, method='duplicate', batch_size=32, shuffle=False):
         method (str): 'duplicate' or 'jet'.
         batch_size (int): Batch size.
         shuffle (bool): Whether to shuffle data.
+        preprocess_fn (callable): 
+            if None (RQ1), use default preprocessing function.
+            else (RQ2), use the provided preprocessing function and ignore the method argument.
         
     Returns:
         tf.data.Dataset: Configured dataset pipeline.
@@ -151,7 +180,10 @@ def create_dataset(df, method='duplicate', batch_size=32, shuffle=False):
         ds = ds.shuffle(buffer_size=2000, seed=42)
     
     # 4. Partial binding of the method argument
-    loader_func = functools.partial(image_processor, method=method)
+    if preprocess_fn is None:
+        loader_func = functools.partial(image_processor, method=method)
+    else:
+        loader_func = preprocess_fn
     
     # 5. Map: Connect Python logic to TF Graph
     ds = ds.map(
