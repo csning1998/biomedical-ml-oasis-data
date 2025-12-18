@@ -10,7 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix, classification_report
-
+from matplotlib.ticker import MaxNLocator
 from model_factory import build_resnet101
 from data_loader import CLASS_MAP
 
@@ -170,6 +170,7 @@ def plot_history(history, experiment_name):
     ax.set_ylim(0, 1.05)
     ax.grid(True, linestyle='--', alpha=0.6)
 
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     plt.tight_layout()
     plt.show()
 
