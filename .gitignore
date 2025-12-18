@@ -10,9 +10,6 @@ dementia_very_mild/
 non-demented/
 dataset/
 
-# Ignore csv files (insurance)
-**/*.csv
-
 # Ignore system files
 .DS_Store
 
@@ -21,7 +18,8 @@ __pycache__/
 *.pyc
 
 # Ignore Keras Models
-models/
+models/*.keras
+models/*.h5
 
 # Ignore IDE files
 .vscode/
