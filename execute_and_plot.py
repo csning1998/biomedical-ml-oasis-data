@@ -216,7 +216,7 @@ def evaluate_and_plot_cm(model, val_ds, title_prefix="Model"):
 
     plt.xlabel('Predicted Label')
     plt.ylabel('True Label')
-    plt.title(f'Confusion Matrix (RQ1 Flawed)\nValidation Accuracy: {np.mean(y_true == y_pred):.4f}')
+    plt.title(f'Confusion Matrix {title_prefix}\nValidation Accuracy: {np.mean(y_true == y_pred):.4f}')
     plt.show()
 
     # 6. Print Report
