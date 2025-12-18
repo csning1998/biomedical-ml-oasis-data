@@ -9,20 +9,24 @@ import tensorflow as tf
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.metrics import confusion_matrix, classification_report
 
 from model_factory import build_resnet101
+from data_loader import CLASS_MAP
 
-def run_experiment(name, train_ds, val_ds, class_weights, epochs=20, save_dir='models'):
+def run_experiment(name, train_ds, val_ds, class_weights, epochs=20, save_dir='models', model_builder=None):
     """
-    Unified experiment runner.
-    
+    Unified experiment runner with Model Injection Support.
+
     Args:
         name (str): Experiment name (e.g., 'jet', 'viridis'). Used for file naming.
         train_ds (tf.data.Dataset): Training dataset.
         val_ds (tf.data.Dataset): Validation dataset.
         class_weights (dict): Class weights for imbalanced training.
-        epochs (int): Number of training epochs.
+        epochs (int): Number of training epochs.c
         save_dir (str): Directory to save models and logs. Defaults to 'models'.
+        model_builder (callable): Function to build the model (e.g., build_resnet101). 
+            If None, defaults to build_resnet101 for backward compatibility.
     
     Returns:
         model: The trained Keras model.
@@ -62,33 +66,37 @@ def run_experiment(name, train_ds, val_ds, class_weights, epochs=20, save_dir='m
     
     print(f"[{name}] Starting new training session...")
     
-    # 3. Construct model (using factory)
-    # Note: freeze_bn=True is enforced to maintain consistency with RQ1 Baseline
-    model = build_resnet101(freeze_bn=True)
-    
+    # 3. Construct model (Dependency Injection)
+    if model_builder is None:
+        model_builder = build_resnet101 # Fallback for old notebooks
+        
+    # Note: Assume all builders accept 'freeze_bn' as defined in model_factory
+    model = model_builder(freeze_bn=False)
+
+    # 4. Compile model
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5, clipnorm=1.0),
         loss='sparse_categorical_crossentropy',
         metrics=['sparse_categorical_accuracy']
     )
     
-    # 4. Callbacks
+    # 5. Callbacks
     callbacks = [
-        # 4a. Early Stopping
+        # 5a. Early Stopping
         tf.keras.callbacks.EarlyStopping(
             monitor='val_loss',
             patience=5,
             restore_best_weights=True,
             verbose=1
         ),
-        # 4b. Model Checkpoint (Uses dynamic model_path)
+        # 5b. Model Checkpoint (Uses dynamic model_path)
         tf.keras.callbacks.ModelCheckpoint(
             filepath=model_path,
             monitor='val_loss',
             save_best_only=True,
             verbose=1
         ),
-        # 4c. Reduce Learning Rate
+        # 5c. Reduce Learning Rate
         tf.keras.callbacks.ReduceLROnPlateau(
             monitor='val_loss',
             factor=0.2,
@@ -96,11 +104,11 @@ def run_experiment(name, train_ds, val_ds, class_weights, epochs=20, save_dir='m
             min_lr=1e-7,
             verbose=1
         ),
-        # 4d. CSV Logger (Uses dynamic csv_path)
+        # 5d. CSV Logger (Uses dynamic csv_path)
         tf.keras.callbacks.CSVLogger(csv_path) 
     ]
     
-    # 5. Training
+    # 6. Training
     history = model.fit(
         train_ds,
         validation_data=val_ds,
@@ -164,3 +172,58 @@ def plot_history(history, experiment_name):
 
     plt.tight_layout()
     plt.show()
+
+def evaluate_and_plot_cm(model, val_ds, class_names, title_prefix="Model"):
+    """
+    Unified evaluation function: generate predictions, plot confusion matrix, and print classification report.
+    
+    Args:
+        model: Trained Keras model
+        val_ds: Validation or test dataset (tf.data.Dataset), suggested batch_size <= 16 to avoid OOM
+        class_names: List of class names, order must correspond to label index
+        title_prefix: Prefix for the plot title (e.g., 'RQ1 Baseline', 'RQ2 Jet')
+    """
+
+    # 1. Get Predictions
+    print("Generating predictions for Validation Set...")
+    y_pred_probs = model.predict(val_ds, verbose=1)
+    y_pred = np.argmax(y_pred_probs, axis=1)
+
+    # 2. Get True Labels
+    y_true = []
+    for images, labels in val_ds:
+        y_true.extend(labels.numpy())
+    y_true = np.array(y_true)
+
+    # 3. Define Class Names
+    sorted_map = sorted(CLASS_MAP.items(), key=lambda item: item[1])
+    class_names = [k for k, v in sorted_map]
+
+    # 4. Calculate Confusion Matrix
+    cm = confusion_matrix(y_true, y_pred, labels=[0, 1, 2, 3])
+
+    # 5. Plot
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(
+        cm, 
+        annot=True, 
+        fmt='d', 
+        cmap='Blues', 
+        xticklabels=class_names, 
+        yticklabels=class_names
+    )
+
+    plt.xlabel('Predicted Label')
+    plt.ylabel('True Label')
+    plt.title(f'Confusion Matrix (RQ1 Flawed)\nValidation Accuracy: {np.mean(y_true == y_pred):.4f}')
+    plt.show()
+
+    # 6. Print Report
+    print("\nClassification Report:\n")
+    print(classification_report(
+        y_true, 
+        y_pred, 
+        target_names=class_names, 
+        labels=[0, 1, 2, 3], 
+        zero_division=0
+    ))

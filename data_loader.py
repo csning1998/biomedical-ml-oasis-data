@@ -7,6 +7,8 @@ import tensorflow as tf
 import numpy as np
 import cv2
 import functools
+import os
+import random
 from sklearn.utils import class_weight
 from tensorflow.keras.applications.resnet import preprocess_input
 
@@ -17,6 +19,30 @@ CLASS_MAP = {
     "dementia_mild": 2, 
     "dementia_moderate": 3
 }
+
+TRAINING_SEED = 439 # According to 01_Data_Preparation.ipynb
+
+def set_global_seed(seed=TRAINING_SEED):
+    """
+    Set the global random seed according to 01_Data_Preparation.ipynb for reproducibility.
+    
+    Args:
+        seed (int): The seed value to set. Defaults to TRAINING_SEED.
+    """
+    # 1. Python core
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    random.seed(seed)
+    
+    # 2. Numpy
+    np.random.seed(seed)
+    
+    # 3. TensorFlow
+    tf.random.set_seed(seed)
+    
+    # 4. Keras (Newer versions utility)
+    tf.keras.utils.set_random_seed(seed)
+    
+    print(f"Global Random Seed set to: {seed}")
 
 def get_class_weights(df): # RQ1
     """
