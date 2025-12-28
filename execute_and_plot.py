@@ -228,3 +228,55 @@ def evaluate_and_plot_cm(model, val_ds, title_prefix="Model"):
         labels=[0, 1, 2, 3], 
         zero_division=0
     ))
+
+def plot_loss(history, experiment_name):
+    """
+    Plot training loss curves (Complementary to plot_history).
+    Args:
+        history: model.fit() returns history object, or pd.DataFrame from CSVLogger.
+        experiment_name (str): Used for title display.
+    """
+    # 1. Data Extraction (Reusing logic for consistency)
+    if hasattr(history, 'history'):
+        metrics = history.history
+    elif isinstance(history, pd.DataFrame):
+        metrics = history.to_dict(orient='list')
+    elif isinstance(history, dict):
+        metrics = history
+    else:
+        print("No history data available for plotting.")
+        return
+
+    loss_train = metrics.get('loss', [])
+    loss_val = metrics.get('val_loss', [])
+    
+    if not loss_train:
+        print(f"Loss metrics not found in history. Keys: {metrics.keys()}")
+        return
+
+    epochs = range(1, len(loss_train) + 1)
+
+    # 2. Construct DataFrame
+    data = pd.DataFrame({
+        'Epoch': list(epochs) + list(epochs),
+        'Loss': loss_train + loss_val,
+        'Set': ['Training'] * len(epochs) + ['Validation'] * len(epochs)
+    })
+
+    # 3. Plotting
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.lineplot(
+        data=data, x='Epoch', y='Loss', hue='Set', style='Set',
+        markers=True, dashes=False,
+        palette={'Training': '#2ecc71', 'Validation': '#e74c3c'},
+        ax=ax
+    )
+
+    ax.set_title(f"Experiment: {experiment_name} (Loss Curve)", fontsize=12)
+    ax.set_ylabel("Cross Entropy Loss", fontsize=10)
+    ax.set_xlabel("Epoch", fontsize=10)
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    
+    plt.tight_layout()
+    plt.show()
